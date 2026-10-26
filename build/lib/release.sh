@@ -359,7 +359,6 @@ function kube::release::create_docker_images_for_server() {
           --load ${docker_build_opts:+"${docker_build_opts}"} \
           -t "${docker_image_tag}" \
           --build-arg BASEIMAGE="${base_image}" \
-          --build-arg SETCAP_IMAGE="${KUBE_BUILD_SETCAP_IMAGE}" \
           --build-arg BINARY="${binary_name}" \
           "${docker_build_path}" >"${build_log}" 2>&1; then
             cat "${build_log}"

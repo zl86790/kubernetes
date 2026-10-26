@@ -238,12 +238,6 @@ dependencies:
     - path: test/images/agnhost/fakeregistryserver/images.txt
       match: pause\s
 
-  - name: "registry.k8s.io/build-image/setcap: dependents"
-    version: trixie-v1.0.1
-    refPaths:
-    - path: build/common.sh
-      match: __default_setcap_version=
-
   # cadvisor
   - name: "gcr.io/cadvisor/cadvisor: dependents"
     version: "v0.47.2"

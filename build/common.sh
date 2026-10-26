@@ -79,7 +79,6 @@ readonly REMOTE_OUTPUT_GOPATH="${REMOTE_OUTPUT_SUBPATH}/go"
 # These are the default versions (image tags) for their respective base images.
 readonly __default_distroless_iptables_version=v0.11.1
 readonly __default_go_runner_version=v2.4.0-go1.27.2-trixie.0
-readonly __default_setcap_version=trixie-v1.0.1
 
 # The default image for all binaries which are dynamically linked.
 # Includes everything that is required by kube-proxy, which uses it
@@ -111,9 +110,6 @@ readonly KUBE_CONTROLLER_MANAGER_BASE_IMAGE="${KUBE_CONTROLLER_MANAGER_BASE_IMAG
 readonly KUBE_SCHEDULER_BASE_IMAGE="${KUBE_SCHEDULER_BASE_IMAGE:-$(__default_base_image k8s.io/kubernetes/cmd/kube-scheduler)}"
 readonly KUBE_PROXY_BASE_IMAGE="${KUBE_PROXY_BASE_IMAGE:-$__default_dynamic_base_image}"
 readonly KUBECTL_BASE_IMAGE="${KUBECTL_BASE_IMAGE:-$(__default_base_image k8s.io/kubernetes/cmd/kubectl)}"
-
-# This is the image used in a multi-stage build to apply capabilities to Docker-wrapped binaries.
-readonly KUBE_BUILD_SETCAP_IMAGE="${KUBE_BUILD_SETCAP_IMAGE:-$KUBE_BASE_IMAGE_REGISTRY/setcap:$__default_setcap_version}"
 
 # Get the set of master binaries that run in Docker (on Linux)
 # Entry format is "<binary-name>,<base-image>".
