@@ -94,6 +94,9 @@ type portForwardLifecycle struct {
 	lists         atomic.Int32
 	watchLock     sync.Mutex
 	allWatches    []*watch.RaceFreeFakeWatcher
+	// Keepalive overrides for the forwarder; zero values select the defaults.
+	keepaliveInterval time.Duration
+	keepaliveTimeout  time.Duration
 }
 
 func startPortForwardLifecycle(t *testing.T, configure ...func(*portForwardLifecycle)) *portForwardLifecycle {
@@ -184,9 +187,13 @@ func startPortForwardLifecycle(t *testing.T, configure ...func(*portForwardLifec
 		Config: &restclient.Config{Host: server.URL}, Address: []string{"127.0.0.1"}, Ports: []string{":8080"},
 		StopChannel: f.stop, ReadyChannel: ready,
 	}
-	forwarder := &defaultPortForwarder{IOStreams: genericiooptions.IOStreams{
-		Out: forwardingAddressWriter{addresses}, ErrOut: io.Discard,
-	}}
+	forwarder := &defaultPortForwarder{
+		IOStreams: genericiooptions.IOStreams{
+			Out: forwardingAddressWriter{addresses}, ErrOut: io.Discard,
+		},
+		keepaliveInterval: f.keepaliveInterval,
+		keepaliveTimeout:  f.keepaliveTimeout,
+	}
 	serverURL, err := url.Parse(server.URL)
 	if err != nil {
 		t.Fatal(err)
@@ -335,6 +342,31 @@ func TestPortForwardPodLifecycle(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The echo server is a real SPDY endpoint, so it answers the session
+// keepalive pings automatically. Many keepalive cycles must pass on a healthy
+// session without the monitor tearing it down.
+func TestPortForwardSessionKeepaliveKeepsHealthySession(t *testing.T) {
+	f := startPortForwardLifecycle(t, func(f *portForwardLifecycle) {
+		f.keepaliveInterval = 50 * time.Millisecond
+		f.keepaliveTimeout = 2 * time.Second
+	})
+	f.nextWatch(t)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		f.echo(t, f.connection)
+		time.Sleep(50 * time.Millisecond)
+		select {
+		case <-f.done:
+			t.Fatalf("forwarding stopped although the transport answers pings: %v", f.err)
+		default:
+		}
+	}
+
+	f.cancel()
+	f.assertStopped(t, nil)
 }
 
 func TestPortForwardForbiddenInitialList(t *testing.T) {

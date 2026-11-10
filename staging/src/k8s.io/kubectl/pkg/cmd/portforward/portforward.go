@@ -105,6 +105,13 @@ var (
 const (
 	// Amount of time to wait until at least one pod is running
 	defaultPodPortForwardWaitTimeout = 60 * time.Second
+
+	// Session keepalive defaults: ping the forwarding transport this often,
+	// and end the session when a reply is not seen within the timeout. The
+	// timeout is far above any realistic round trip so only a peer that is
+	// actually unreachable trips it.
+	defaultKeepaliveInterval = 15 * time.Second
+	defaultKeepaliveTimeout  = 30 * time.Second
 )
 
 func NewCmdPortForward(f cmdutil.Factory, streams genericiooptions.IOStreams) *cobra.Command {
@@ -142,6 +149,10 @@ type portForwarder interface {
 
 type defaultPortForwarder struct {
 	genericiooptions.IOStreams
+	// Keepalive knobs for the forwarding session, overridable for tests.
+	// Zero values select the defaults.
+	keepaliveInterval time.Duration
+	keepaliveTimeout  time.Duration
 }
 
 func createDialer(method string, url *url.URL, opts PortForwardOptions) (streamhttp.Dialer, error) {
@@ -179,8 +190,20 @@ func (f *defaultPortForwarder) ForwardPorts(ctx context.Context, method string, 
 			}
 		}()
 	}
+	keepaliveInterval, keepaliveTimeout := f.keepaliveInterval, f.keepaliveTimeout
+	if keepaliveInterval <= 0 {
+		keepaliveInterval = defaultKeepaliveInterval
+	}
+	if keepaliveTimeout <= 0 {
+		keepaliveTimeout = defaultKeepaliveTimeout
+	}
+	// Two independent monitors end an idle session when its target is gone:
+	// the pod watch below covers termination visible in the API, the session
+	// keepalive covers a transport that died silently (e.g. an unresponsive
+	// node while the pod object still reports Running).
 	fw, err := portforward.NewOnAddressesForStreamingWithOptions(fwdCtx, dialer, opts.Address, opts.Ports, opts.ReadyChannel, f.Out, f.ErrOut,
-		portforward.WithErrorHandler(func(context.Context, portforward.ForwardedPort, error) bool { return false }))
+		portforward.WithErrorHandler(func(context.Context, portforward.ForwardedPort, error) bool { return false }),
+		portforward.WithSessionKeepalive(keepaliveInterval, keepaliveTimeout))
 	if err != nil {
 		return err
 	}
